@@ -179,7 +179,7 @@ func fetchItem[T models.DbItem](query string, item *T, scan func(*sql.Rows, *T) 
 			if err = scan(rows, item); err != nil {
 				return fmt.Errorf("failed to scan fetchItem from row: %w", err)
 			}
-			return nil
+			return fmt.Errorf("NULL")
 		} else {
 			return fmt.Errorf("item with pk \"%s\" does not exists (query: \"%s\")", (*item).Pk(), query)
 		}
@@ -568,6 +568,62 @@ func FetchRaces(populate bool) (races []models.Race, err error) {
 	return
 }
 
+func FetchRace(name string) (race models.Race, err error) {
+	race.Name = name
+	if err = fetchItem(raceQuery+" WHERE r.name = ?", &race, scanRace); err != nil {
+		return race, fmt.Errorf("failed to fetch race %s: %w", name, err)
+	}
+	errs := make([]error, 0)
+	var stmt *sql.Stmt
+	if stmt, err = db.Prepare(bgQuery + " WHERE b.name IN ?"); err != nil {
+		return race, fmt.Errorf("failed to prepare fetchRaces background population query: %w", err)
+	} else {
+		if err = populateRaceBg(&race, stmt); err != nil {
+			errs = append(errs, err)
+		}
+		_ = stmt.Close()
+	}
+	if stmt, err = db.Prepare(affinityQuery + " WHERE a.name IN ?"); err == nil {
+		if err = populateLevelItem(stmt, &race.Boons, toPkList(race.Boons), scanAffinity); err != nil {
+			errs = append(errs, fmt.Errorf("failed to populate boons for %s: %w", race.Name, err))
+		}
+		if err = populateLevelItem(stmt, &race.Banes, toPkList(race.Banes), scanAffinity); err != nil {
+			errs = append(errs, fmt.Errorf("failed to populate banes for %s: %w", race.Name, err))
+		}
+		_ = stmt.Close()
+	} else {
+		errs = append(errs, fmt.Errorf("failed to prepare fetchRaces affinity population query: %w", err))
+	}
+
+	if stmt, err = db.Prepare(abilityQuery + " WHERE a.name IN ?"); err == nil {
+		if err = populateLevelItem(stmt, &race.Abilities, toPkList(race.Abilities), scanAbility); err != nil {
+			errs = append(errs, fmt.Errorf("failed to populate abilities for %s: %w", race.Name, err))
+		}
+		_ = stmt.Close()
+	} else {
+		errs = append(errs, err)
+	}
+	if stmt, err = db.Prepare(skillQuery + " WHERE b.name IN ?"); err == nil {
+		if err = populateLevelItem(stmt, &race.Skills, toPkList(race.Skills), scanSkill); err != nil {
+			errs = append(errs, fmt.Errorf("failed to populate skills for %s: %w", race.Name, err))
+		}
+		_ = stmt.Close()
+	} else {
+		errs = append(errs, err)
+	}
+	if len(errs) > 0 {
+		if len(errs) == 1 {
+			err = fmt.Errorf("an error occured while populating races: %w", errs[0])
+		} else {
+			err = fmt.Errorf("multiple errors occured while populating races:\n")
+			for _, subError := range errs {
+				err = fmt.Errorf("%w\n  %w", err, subError)
+			}
+		}
+	}
+	return
+}
+
 func FetchBackgrounds(populate bool) (bgs []models.Background, err error) {
 	var stmt *sql.Stmt
 	if stmt, err = db.Prepare(bgQuery); err != nil {
@@ -629,6 +685,54 @@ func FetchBackgrounds(populate bool) (bgs []models.Background, err error) {
 	return
 }
 
+func FetchBackground(name string) (bg models.Background, err error) {
+	bg.Name = name
+	if err = fetchItem(bgQuery+" WHERE b.name LIKE ?", &bg, scanBg); err != nil {
+		err = fmt.Errorf("failed to fetch background %s: %w", name, err)
+	}
+	errs := make([]error, 0)
+	var stmt *sql.Stmt
+	if stmt, err = db.Prepare(affinityQuery + " WHERE a.name IN ?"); err == nil {
+		if err = populateLevelItem(stmt, &bg.Boons, toPkList(bg.Boons), scanAffinity); err != nil {
+			errs = append(errs, fmt.Errorf("failed to populate boons for %s: %w", bg.Name, err))
+		}
+		if err = populateLevelItem(stmt, &bg.Banes, toPkList(bg.Banes), scanAffinity); err != nil {
+			errs = append(errs, fmt.Errorf("failed to populate banes for %s: %w", bg.Name, err))
+		}
+		_ = stmt.Close()
+	} else {
+		errs = append(errs, fmt.Errorf("failed to prepare fetchRaces affinity population query: %w", err))
+	}
+
+	if stmt, err = db.Prepare(abilityQuery + " WHERE a.name IN ?"); err == nil {
+		if err = populateLevelItem(stmt, &bg.Abilities, toPkList(bg.Abilities), scanAbility); err != nil {
+			errs = append(errs, fmt.Errorf("failed to populate abilities for %s: %w", bg.Name, err))
+		}
+		_ = stmt.Close()
+	} else {
+		errs = append(errs, err)
+	}
+	if stmt, err = db.Prepare(skillQuery + " WHERE b.name IN ?"); err == nil {
+		if err = populateLevelItem(stmt, &bg.Skills, toPkList(bg.Skills), scanSkill); err != nil {
+			errs = append(errs, fmt.Errorf("failed to populate skills for %s: %w", bg.Name, err))
+		}
+		_ = stmt.Close()
+	} else {
+		errs = append(errs, err)
+	}
+	if len(errs) > 0 {
+		if len(errs) == 1 {
+			err = fmt.Errorf("an error occured while populating backgrounds: %w", errs[0])
+		} else {
+			err = fmt.Errorf("multiple errors occured while populating backgrounds:\n")
+			for _, subError := range errs {
+				err = fmt.Errorf("%w\n  %w", err, subError)
+			}
+		}
+	}
+	return
+}
+
 func FetchAffinities(isBoon *bool) (_ []models.Affinity, err error) {
 	var stmt *sql.Stmt
 	if isBoon != nil {
@@ -640,8 +744,18 @@ func FetchAffinities(isBoon *bool) (_ []models.Affinity, err error) {
 			return nil, fmt.Errorf("failed to prepare fetchAffinities query: %w", err)
 		}
 	}
-	_ = stmt.Close()
+	defer func() {
+		_ = stmt.Close()
+	}()
 	return fetchItems(stmt, isBoon, scanAffinity)
+}
+
+func FetchAffinity(name string) (aff models.Affinity, err error) {
+	aff.Name = name
+	if err = fetchItem(affinityQuery+" WHERE a.name LIKE ?", &aff, scanAffinity); err != nil {
+		err = fmt.Errorf("failed to fetch affinity %s: %w", name, err)
+	}
+	return
 }
 
 func FetchAbilities() (abilities []models.Ability, err error) {
@@ -649,8 +763,18 @@ func FetchAbilities() (abilities []models.Ability, err error) {
 	if stmt, err = db.Prepare(abilityQuery); err != nil {
 		return nil, fmt.Errorf("failed to prepare fetchAbilities query: %w", err)
 	}
-	_ = stmt.Close()
+	defer func() {
+		_ = stmt.Close()
+	}()
 	return fetchItems(stmt, nil, scanAbility)
+}
+
+func FetchAbility(name string) (ability models.Ability, err error) {
+	ability.Name = name
+	if err = fetchItem(abilityQuery+" WHERE a.name LIKE ?", &ability, scanAbility); err != nil {
+		err = fmt.Errorf("failed to fetch ability %s: %w", name, err)
+	}
+	return
 }
 
 func FetchSkills() (skills []models.Skill, err error) {
@@ -658,8 +782,18 @@ func FetchSkills() (skills []models.Skill, err error) {
 	if stmt, err = db.Prepare(skillQuery); err != nil {
 		return nil, fmt.Errorf("failed to prepare fetchSkills query: %w", err)
 	}
-	_ = stmt.Close()
+	defer func() {
+		_ = stmt.Close()
+	}()
 	return fetchItems(stmt, nil, scanSkill)
+}
+
+func FetchSkill(name string) (skill models.Skill, err error) {
+	skill.Name = name
+	if err = fetchItem(skillQuery+" WHERE a.name LIKE ?", &skill, scanSkill); err != nil {
+		err = fmt.Errorf("failed to fetch skill %s: %w", name, err)
+	}
+	return
 }
 
 func FetchCharacters(populate bool) (chars []models.Character, err error) {
