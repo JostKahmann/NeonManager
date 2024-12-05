@@ -1,0 +1,9 @@
+<h1>{{ .Title }}</h1>
+<p class="article p-2">
+    {{ .Text }}
+</p>
+<div class="tag-list">
+    {{ range .Tags }}
+    <i class="p-2 ">{{ . }}</i>
+    {{ end }}
+</div>

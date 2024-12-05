@@ -154,13 +154,13 @@ func InsertAbility(ability *models.Ability) error {
 	}
 	values := make([]any, ln*5, 0)
 	for _, req := range (*ability).Requires {
-		switch req.ReqType {
+		switch req.RequiredType {
 		case 0:
-			values = append(values, (*ability).Name, req.ReqType, nil, req.RAbility, nil)
+			values = append(values, (*ability).Name, req.RequiredType, nil, req.RAbility, nil)
 		case 1:
-			values = append(values, (*ability).Name, req.ReqType, req.RAffinity, nil, nil)
+			values = append(values, (*ability).Name, req.RequiredType, req.RAffinity, nil, nil)
 		case 2:
-			values = append(values, (*ability).Name, req.ReqType, nil, nil, req.RSkill)
+			values = append(values, (*ability).Name, req.RequiredType, nil, nil, req.RSkill)
 		}
 	}
 	if stmt, err := db.Prepare(abilityRequiresInsert + valuesStr(ln, 5)); err != nil {
@@ -174,7 +174,7 @@ func InsertAbility(ability *models.Ability) error {
 	return nil
 }
 
-func InserAffinity(affinity *models.Affinity) error {
+func InsertAffinity(affinity *models.Affinity) error {
 	if stmt, err := db.Prepare(affinityInsert); err != nil {
 		return fmt.Errorf("failed to prepare affinity insert statement: %w", err)
 	} else {

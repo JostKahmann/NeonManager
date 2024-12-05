@@ -1,0 +1,22 @@
+<table class="table table-striped table-hover">
+    <thead>
+        <tr>
+            <th scope="col">Title</th>
+            <th scope="col">Description</th>
+            <th scope="col">Tags</th>
+        </tr>
+    </thead>
+    <tbody>
+        {{ range . }}
+        <tr onclick="window.location='/search?t={{ .Table }}&q={{ .Title }}'">
+            <td>{{ .Title }}</td>
+            <td style="max-width: 50vw; max-height: 1.5em; overflow: hidden; text-overflow: ellipsis">{{ .Text }}</td>
+            <td>
+                {{ range .Tags }}
+                <i class="ps-2 pe-2">{{ . }}</i>
+                {{ end }}
+            </td>
+        </tr>
+        {{ end }}
+    </tbody>
+</table>

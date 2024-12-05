@@ -88,7 +88,7 @@ type Background struct {
 }
 
 type ChoiceGroup struct {
-	ChoiceType int         `json:"type"`
+	ChoiceType ChoiceType  `json:"type"`
 	Count      int         `json:"count"`
 	Affinities []*Affinity `json:"affinities"`
 	Abilities  []*Ability  `json:"abilities"`
