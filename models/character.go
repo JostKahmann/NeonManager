@@ -2,8 +2,6 @@ package models
 
 import "strconv"
 
-var Extensions map[int]string
-
 type ChoiceType int
 
 const (

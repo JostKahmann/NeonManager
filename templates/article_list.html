@@ -1,0 +1,43 @@
+{{ define "content" }}
+<div class="container">
+
+    <div class="row">
+        <div class="col">
+            <h1 class="text-center">{{ .Article.Title }}</h1>
+        </div>
+    </div>
+    <div class="row">
+        <div class="col">
+            <p class="article p-2 text-center">
+                {{ .Article.Text }}
+            </p>
+        </div>
+    </div>
+    <div class="row">
+        <div class="col">
+            <h2 class="text-center">List of {{ .Article.Title }}</h2>
+            <table class="table table-striped table-hover">
+                <thead>
+                <tr>
+                    <th scope="col">Name</th>
+                    <th scope="col">Cost</th>
+                </tr>
+                </thead>
+                <tbody>
+                {{ range .List }}
+                <tr onclick="window.location='/search?t={{ $.Content.Article.Title }}&q={{ .Name }}'">
+                    <td style="white-space: nowrap">{{ .Name }}</td>
+                    <td style="white-space: nowrap">{{ .Cost }}</td>
+                </tr>
+                {{ end }}
+                </tbody>
+            </table>
+        </div>
+    </div>
+    <div class="row tag-list">
+        {{ range .Article.Tags }}
+        <i class="col p-2">{{ . }}</i>
+        {{ end }}
+    </div>
+</div>
+{{ end }}

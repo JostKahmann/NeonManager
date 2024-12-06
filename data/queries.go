@@ -14,16 +14,16 @@ import (
 var db *sql.DB
 
 var raceQuery = `
-SELECT r.name, r.cost, e.name, r.description, s.id, s.cr, s.int, s.ins, s.ch, s.ag, s.dex, s.con, s.str,
-   GROUP_CONCAT(CASE WHEN b.allowed = 0 THEN b.background END, ','),
-   GROUP_CONCAT(CASE WHEN b.allowed = 1 THEN b.background END, ','),
-   GROUP_CONCAT(CASE WHEN bb.isBoon = 1 AND af.grp = 0 THEN bb.name || '@' || af.level END, ','),
-   GROUP_CONCAT(CASE WHEN bb.isBoon = 0 AND af.grp = 0 THEN bb.name || '@' || af.level END, ','),
-   GROUP_CONCAT(CASE WHEN a.grp = 0 THEN a.ability END, ','),
-   GROUP_CONCAT(CASE WHEN sk.grp = 0 THEN sk.skill || '@' || sk.level END, ','),
-   GROUP_CONCAT(CASE WHEN af.grp <> 0 THEN af.grp || ':' || af.gcount || ':' || af.affinity || '@' || af.level END, ','),
-   GROUP_CONCAT(CASE WHEN a.grp <> 0 THEN a.grp || ':' || a.gcount || ':' || a.ability END, ','),
-   GROUP_CONCAT(CASE WHEN sk.grp <> 0 THEN sk.grp || ':' || sk.gcount || ':' || sk.skill || '@' || sk.level END, ',')
+SELECT * FROM (SELECT r.name, r.cost, e.name, r.description, s.id, s.cr, s.int, s.ins, s.ch, s.ag, s.dex, s.con, s.str,
+   COALESCE(GROUP_CONCAT(CASE WHEN b.allowed = 0 THEN b.background END, ','), ''),
+   COALESCE(GROUP_CONCAT(CASE WHEN b.allowed = 1 THEN b.background END, ','), ''),
+   COALESCE(GROUP_CONCAT(CASE WHEN bb.isBoon = 1 AND af.grp = 0 THEN bb.name || '@' || af.level END, ','), ''),
+   COALESCE(GROUP_CONCAT(CASE WHEN bb.isBoon = 0 AND af.grp = 0 THEN bb.name || '@' || af.level END, ','), ''),
+   COALESCE(GROUP_CONCAT(CASE WHEN a.grp = 0 THEN a.ability END, ','), ''),
+   COALESCE(GROUP_CONCAT(CASE WHEN sk.grp = 0 THEN sk.skill || '@' || sk.level END, ','), ''),
+   COALESCE(GROUP_CONCAT(CASE WHEN af.grp <> 0 THEN af.grp || ':' || af.gcount || ':' || af.affinity || '@' || af.level END, ','), ''),
+   COALESCE(GROUP_CONCAT(CASE WHEN a.grp <> 0 THEN a.grp || ':' || a.gcount || ':' || a.ability END, ','), ''),
+   COALESCE(GROUP_CONCAT(CASE WHEN sk.grp <> 0 THEN sk.grp || ':' || sk.gcount || ':' || sk.skill || '@' || sk.level END, ','), '')
 FROM race r
    JOIN extension e ON r.extension = e.id
    JOIN stats s ON r.stats = s.id
@@ -32,16 +32,19 @@ FROM race r
    JOIN affinity bb ON af.affinity = bb.name
    JOIN _races_abilities a ON r.name = a.race
    JOIN _races_skills sk ON r.name = sk.race
+GROUP BY r.name
+HAVING COUNT(*) > 0
+)
 `
 var bgQuery = `
-SELECT b.name, b.cost, e.name, b.description, s.id, s.cr, s.int, s.ins, s.ch, s.ag, s.dex, s.con, s.str,
-   GROUP_CONCAT(CASE WHEN bb.isBoon = 1 AND af.grp = 0 THEN bb.name || '@' || af.level END, ','),
-   GROUP_CONCAT(CASE WHEN bb.isBoon = 0 AND af.grp = 0 THEN bb.name || '@' || af.level END, ','),
-   GROUP_CONCAT(CASE WHEN a.grp = 0 THEN a.ability END, ','),
-   GROUP_CONCAT(CASE WHEN sk.grp = 0 THEN sk.skill || '@' || sk.level END, ','),
-   GROUP_CONCAT(CASE WHEN af.grp <> 0 THEN af.grp || ':' || af.gcount || ':' || af.affinity || '@' || af.level END, ','),
-   GROUP_CONCAT(CASE WHEN a.grp <> 0 THEN a.grp || ':' || a.gcount || ':' || a.ability END, ','),
-   GROUP_CONCAT(CASE WHEN sk.grp <> 0 THEN sk.grp || ':' || sk.gcount || ':' || sk.skill || '@' || sk.level END, ',')
+SELECT * FROM (SELECT b.name, b.cost, e.name, b.description, s.id, s.cr, s.int, s.ins, s.ch, s.ag, s.dex, s.con, s.str,
+   COALESCE(GROUP_CONCAT(CASE WHEN bb.isBoon = 1 AND af.grp = 0 THEN bb.name || '@' || af.level END, ','), ''),
+   COALESCE(GROUP_CONCAT(CASE WHEN bb.isBoon = 0 AND af.grp = 0 THEN bb.name || '@' || af.level END, ','), ''),
+   COALESCE(GROUP_CONCAT(CASE WHEN a.grp = 0 THEN a.ability END, ','), ''),
+   COALESCE(GROUP_CONCAT(CASE WHEN sk.grp = 0 THEN sk.skill || '@' || sk.level END, ','), ''),
+   COALESCE(GROUP_CONCAT(CASE WHEN af.grp <> 0 THEN af.grp || ':' || af.gcount || ':' || af.affinity || '@' || af.level END, ','), ''),
+   COALESCE(GROUP_CONCAT(CASE WHEN a.grp <> 0 THEN a.grp || ':' || a.gcount || ':' || a.ability END, ','), ''),
+   COALESCE(GROUP_CONCAT(CASE WHEN sk.grp <> 0 THEN sk.grp || ':' || sk.gcount || ':' || sk.skill || '@' || sk.level END, ','), '')
 FROM background b
     JOIN extension e ON e.id = b.extension 
     JOIN stats s ON s.id = b.stats 
@@ -49,6 +52,9 @@ FROM background b
     JOIN affinity bb ON af.affinity = bb.name
     JOIN _backgrounds_abilities a ON b.name = a.background
     JOIN _backgrounds_skills sk ON b.name = sk.background
+GROUP BY b.name
+HAVING COUNT(*) > 0
+)
 `
 var affinityQuery = `
 SELECT a.name, a.cost, e.name, a.description, a.isBoon
@@ -56,13 +62,16 @@ FROM affinity a
     JOIN extension e ON a.extension = e.id
 `
 var abilityQuery = `
-SELECT a.name, a.cost, e.name, a.effect,
-       GROUP_CONCAT(CASE WHEN r.reqType = 0 THEN r.rAbility || '@' || r.id END, ','),
-       GROUP_CONCAT(CASE WHEN r.reqType = 1 THEN r.rAffinity || '@' || r.id END, ','),
-       GROUP_CONCAT(CASE WHEN r.reqType = 2 THEN r.rSkill || '@' || r.id END, ',') /* might also need skill level */
+SELECT * FROM (SELECT a.name, a.cost, e.name, a.effect,
+       COALESCE(GROUP_CONCAT(CASE WHEN r.reqType = 0 THEN r.rAbility || '@' || r.id END, ','), ''),
+       COALESCE(GROUP_CONCAT(CASE WHEN r.reqType = 1 THEN r.rAffinity || '@' || r.id END, ','), ''),
+       COALESCE(GROUP_CONCAT(CASE WHEN r.reqType = 2 THEN r.rSkill || '@' || r.id END, ','), '') /* might also need skill level */
 FROM ability a
     JOIN extension e ON a.extension = e.id
     JOIN _abilities_requires r ON a.name = r.ability
+GROUP BY a.name
+HAVING COUNT(*) > 0
+)
 `
 var skillQuery = `
 SELECT s.name, s.cost, e.name, s.stat, s.description
@@ -70,11 +79,11 @@ FROM skill s
     JOIN extension e ON e.id = s.extension
 `
 var characterQuery = `
-SELECT c.id, c.name, c.gp, c.xp, s.id, s.cr, s.int, s.ins, s.ch, s.ag, s.dex, s.con, s.str, c.race, 
-       c.background, c.description, GROUP_CONCAT(e.name, ','), 
-       GROUP_CONCAT(CASE WHEN bb.isBoon = 1 THEN bb.name || '@' || af.level END, ','),
-       GROUP_CONCAT(CASE WHEN bb.isBoon = 0 THEN bb.name || '@' || af.level END, ','),
-       GROUP_CONCAT(ca.ability, ','), GROUP_CONCAT(sk.skill || '@' || sk.level, ',')
+SELECT * FROM (SELECT c.id, c.name, c.gp, c.xp, s.id, s.cr, s.int, s.ins, s.ch, s.ag, s.dex, s.con, s.str, c.race, 
+       c.background, c.description, COALESCE(GROUP_CONCAT(e.name, ','), ''), 
+       COALESCE(GROUP_CONCAT(CASE WHEN bb.isBoon = 1 THEN bb.name || '@' || af.level END, ','), ''),
+       COALESCE(GROUP_CONCAT(CASE WHEN bb.isBoon = 0 THEN bb.name || '@' || af.level END, ','), ''),
+       COALESCE(GROUP_CONCAT(ca.ability, ','), ''), GROUP_CONCAT(sk.skill || '@' || sk.level, ',')
 FROM character c
     JOIN stats s ON s.id = c.stats
     JOIN _characters_extensions ce ON c.id = ce.character
@@ -83,12 +92,16 @@ FROM character c
     JOIN affinity bb ON af.affinity = bb.name
     JOIN _characters_abilities ca ON c.id = ca.character
     JOIN _characters_skills sk ON c.id = sk.character
+GROUP BY c.id
+HAVING COUNT(*) > 0
+)
 `
 var articleQuery = `
 SELECT id, title, txt, tags, tbl FROM (
-SELECT a.id as id, a.title as title, a.document as txt, GROUP_CONCAT(t.tag, ',') as tags, 'article' as tbl
+SELECT a.id as id, a.title as title, a.document as txt, COALESCE(GROUP_CONCAT(t.tag, ','), '') as tags, 'article' as tbl
 FROM article a 
-    JOIN _articles_tags t ON a.id = t.article
+    LEFT JOIN _articles_tags t ON a.id = t.article
+GROUP BY a.id
 UNION SELECT -1 as id, r.name || '(' || r.cost || ' GP)' as title, r.description as txt, e.name || 'race' as tags, 'race' as tbl
       FROM race r JOIN extension e ON e.id = r.extension
 UNION SELECT -1 as id, b.name || '(' || b.cost || ' GP)' as title, b.description as txt, e.name || 'background,bg' as tags, 'background' as tbl
@@ -131,20 +144,6 @@ func Init() error {
 		}
 		_ = res.Close()
 	}
-
-	if res, err := db.Query("SELECT id, name FROM extension"); err != nil {
-		return fmt.Errorf("failed to retrieve extensions for models: %w", err)
-	} else {
-		for res.Next() {
-			var id int
-			var name string
-			if err = res.Scan(&id, &name); err != nil {
-				return fmt.Errorf("failed to scan extension for models: %w", err)
-			} else {
-				models.Extensions[id] = name
-			}
-		}
-	}
 	return nil
 }
 
@@ -179,11 +178,11 @@ func fetchItem[T models.DbItem](query string, item *T, scan func(*sql.Rows, *T) 
 			if err = scan(rows, item); err != nil {
 				return fmt.Errorf("failed to scan fetchItem from row: %w", err)
 			}
-			return fmt.Errorf("NULL")
 		} else {
-			return fmt.Errorf("item with pk \"%s\" does not exists (query: \"%s\")", (*item).Pk(), query)
+			return fmt.Errorf("item with pk \"%s\" does not exists (query: \"%s\"): NULL", (*item).Pk(), query)
 		}
 	}
+	return nil
 }
 
 // fetchItems fetches all items via the scan function from the result of the query
@@ -470,8 +469,9 @@ func populateLevelItem[T models.LevelItem](stmt *sql.Stmt, items *[]*T, pks []st
 
 func populateRaceBg(race *models.Race, stmt *sql.Stmt) (err error) {
 	pks := toPkList(race.Backgrounds)
-	if bgs, err1 := fetchItems(stmt, pks, scanBg); err != nil {
-		err = fmt.Errorf("failed to populate backgrounds for %s: %w", race.Name, err1)
+	var bgs []models.Background
+	if bgs, err = fetchItems(stmt, pks, scanBg); err != nil {
+		err = fmt.Errorf("failed to populate backgrounds for %s: %w", race.Name, err)
 	} else {
 		// note: race.Background already exists => for simplicity overwrite all items instead of
 		// matching by name since no additional data is stored
@@ -480,11 +480,11 @@ func populateRaceBg(race *models.Race, stmt *sql.Stmt) (err error) {
 		}
 	}
 	pks = toPkList(race.NotBackgrounds)
-	if bgs, err1 := fetchItems(stmt, pks, scanBg); err != nil {
+	if bgs, err = fetchItems(stmt, pks, scanBg); err != nil {
 		if err != nil {
-			err = fmt.Errorf("%w\n  failed to populate notBackgrounds for %s: %w", err, race.Name, err1)
+			err = fmt.Errorf("%w\n  failed to populate notBackgrounds for %s: %w", err, race.Name, err)
 		} else {
-			err = fmt.Errorf("failed to populate notBackgrounds for %s: %w", race.Name, err1)
+			err = fmt.Errorf("failed to populate notBackgrounds for %s: %w", race.Name, err)
 		}
 	} else {
 		for j, bg := range bgs {
@@ -875,7 +875,7 @@ func FetchArticles() (articles []models.Article, err error) {
 
 func FetchArticle(title string) (article models.Article, err error) {
 	var stmt *sql.Stmt
-	if stmt, err = db.Prepare(articleQuery + " WHERE title = ?"); err != nil {
+	if stmt, err = db.Prepare(articleQuery + " AND title LIKE ?"); err != nil {
 		return article, fmt.Errorf("failed to prepare fetchArticle query: %w", err)
 	}
 	var rows *sql.Rows
@@ -885,6 +885,10 @@ func FetchArticle(title string) (article models.Article, err error) {
 	defer func() {
 		_ = rows.Close()
 	}()
-	err = scanArticle(rows, &article)
+	if rows.Next() {
+		err = scanArticle(rows, &article)
+	} else {
+		err = fmt.Errorf("article \"%s\" not found", title)
+	}
 	return
 }
