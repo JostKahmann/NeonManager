@@ -9,9 +9,56 @@
           integrity="sha384-Vkoo8x4CGsO3+Hhxv8T/Q5PaXtkKtu6ug5TOeNV6gBiFeWPGFN9MuhOf23Q9Ifjh" crossorigin="anonymous">
 
     <title>{{ .Title }}</title>
+
+    <style>
+        /* Large */
+        @media (min-width: 1200px) {
+            .glossary {
+                max-width: 60vw;
+            }
+        }
+
+        /* Medium */
+        @media (min-width: 768px) and (max-width: 1199px) {
+            .glossary {
+                max-width: 40vw;
+            }
+        }
+
+        /* Small */
+        @media (max-width: 767px) {
+            .glossary {
+                max-width: 20vw;
+            }
+        }
+        .nav-link {
+            color: black;
+        }
+        .nav-link:hover {
+            color: black;
+            background-color: #0000000c;
+        }
+        footer {
+            position: fixed;
+            bottom: 0;
+            width: 100%;
+        }
+        ul.with-description li:nth-child(even) {
+            list-style: none;
+        }
+        ul.with-description li:nth-child(odd) {
+            font-weight: bold;
+        }
+        h2 {
+            margin-top: 1rem;
+        }
+        main.container {
+            margin-bottom: 3rem;
+        }
+    </style>
 </head>
 <body>
-<header class="bg-light">
+<header class="p-2 mb-3">
     <ul class="nav justify-content-center">
         <li class="nav-item"><a class="nav-link" href="/foundation">Foundation</a></li>
         <li class="nav-item"><a class="nav-link" href="/dice-checks-and-stats">Dice Checks and Stats</a></li>
@@ -28,12 +75,12 @@
             <div class="dropdown-menu">
                 <a class="dropdown-item" href="/character-creation">Character Creation</a>
                 <div class="dropdown-divider"></div>
-                <a class="dropdown-item" href="/character-creation?type=races">Races</a>
-                <a class="dropdown-item" href="/character-creation?type=bgs">Backgrounds</a>
-                <a class="dropdown-item" href="/character-creation?type=boons">Boons</a>
-                <a class="dropdown-item" href="/character-creation?type=banes">Banes</a>
-                <a class="dropdown-item" href="/character-creation?type=abilities">Abilities</a>
-                <a class="dropdown-item" href="/character-creation?type=skills">Skills</a>
+                <a class="dropdown-item" href="/character-creation/races">Races</a>
+                <a class="dropdown-item" href="/character-creation/bgs">Backgrounds</a>
+                <a class="dropdown-item" href="/character-creation/boons">Boons</a>
+                <a class="dropdown-item" href="/character-creation/banes">Banes</a>
+                <a class="dropdown-item" href="/character-creation/abilities">Abilities</a>
+                <a class="dropdown-item" href="/character-creation/skills">Skills</a>
                 <div class="dropdown-divider"></div>
                 <a class="dropdown-item" href="/create">Create New Character</a>
                 <a class="dropdown-item" href="/create?list=all">Character List</a>
@@ -46,32 +93,32 @@
             <div class="dropdown-menu">
                 <a class="dropdown-item" href="/equipment">All</a>
                 <div class="dropdown-divider"></div>
-                <a class="dropdown-item" href="/equipment?filter=weapons">Weapons</a>
-                <a class="dropdown-item" href="/equipment?filter=armor">Armor</a>
+                <a class="dropdown-item" href="/equipment/weapons">Weapons</a>
+                <a class="dropdown-item" href="/equipment/armor">Armor</a>
                 <div class="dropdown-divider"></div>
-                <a class="dropdown-item" href="/equipment?filter=utility">Utility</a>
+                <a class="dropdown-item" href="/equipment/utility">Utility</a>
             </div>
         </li>
         <li class="nav-item"><a class="nav-link" href="/addons">Addons</a></li>
         <li class="nav-item"><a class="nav-link" href="/glossary">Glossary</a></li>
     </ul>
-</header>
-<div class="container">
-    <div class="row p-5 m-5 justify-content-center">
-        {{ block "content" .Content }}
-        <h1>Hello World!</h1>
-        {{ end }}
-    </div>
-</div>
-<footer class="">
     <hr>
-    <div class="row justify-content-evenly">
-        {{ range .Footer }}
-        <div class="col">
-            {{ . }}
+</header>
+<main class="container">
+    <div class="row justify-content-center">
+        {{ block "content" .Content }}
+        <div class="row">
+            <div class="col">
+                <h1>No content</h1>
+                <p>TODO index</p>
+            </div>
         </div>
         {{ end }}
     </div>
+</main>
+<footer class="bg-light">
+    <hr class="mt-0 pt-0">
+    <div class="text-center pb-2">Neon Manager, 2024 Jost Kahmann</div>
 </footer>
 
 <script src="https://code.jquery.com/jquery-3.3.1.slim.min.js" integrity="sha384-q8i/X+965DzO0rT7abK41JStQIAqVgRVzpbzo5smXKp4YfRvH+8abtTE1Pi6jizo" crossorigin="anonymous"></script>

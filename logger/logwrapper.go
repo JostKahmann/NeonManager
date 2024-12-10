@@ -58,6 +58,27 @@ func Panic(format string, args ...interface{}) {
 	Log(PANIC, format, args...)
 }
 
+func PanicIfErr(format string, err error) {
+	if err != nil {
+		Log(PANIC, format, err)
+	}
+}
+
 func Fatal(format string, args ...interface{}) {
 	Log(FATAL, format, args...)
+}
+
+func FatalIfErr(format string, err error) {
+	if err != nil {
+		Log(FATAL, format, err)
+	}
+}
+
+// FatalOrLog calls FatalIfErr and then Info
+func FatalOrLog(fatalFormat string, err error, format string, args ...interface{}) {
+	if err != nil {
+		Log(FATAL, fatalFormat, err)
+	} else {
+		Log(INFO, format, args...)
+	}
 }

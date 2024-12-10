@@ -1,9 +1,8 @@
 package models
 
 type BaseSite struct {
-	Title   string   `json:"title"`
-	Content any      `json:"body"`
-	Footer  []string `json:"footer"`
+	Title   string `json:"title"`
+	Content any    `json:"body"`
 }
 
 type ArticleList struct {

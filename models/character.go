@@ -1,6 +1,9 @@
 package models
 
-import "strconv"
+import (
+	"html/template"
+	"strconv"
+)
 
 type ChoiceType int
 
@@ -136,11 +139,11 @@ type Skill struct {
 }
 
 type Article struct {
-	Id    int      `json:"id"`
-	Title string   `json:"title"`
-	Text  string   `json:"text"`
-	Table string   `json:"table"`
-	Tags  []string `json:"tags"`
+	Id    int           `json:"id"`
+	Title string        `json:"title"`
+	Text  template.HTML `json:"text"`
+	Table string        `json:"table"`
+	Tags  []string      `json:"tags"`
 }
 
 func (c Character) Pk() string {
