@@ -136,11 +136,11 @@ func Serve() error {
 			sendImg(file, w)
 		})
 	}
-	if regex, err := regexp.Compile("^/foundation$"); err != nil {
+	if regex, err := regexp.Compile("^/the-foundation$"); err != nil {
 		logger.Error("Failed to compile regex for foundation: %v", err)
 	} else {
 		handler.HandlerFunc(regex, func(w http.ResponseWriter, r *http.Request) {
-			if tmpl, d, err := createTemplateArticle("Foundation"); err != nil {
+			if tmpl, d, err := createTemplateArticle("The Foundation"); err != nil {
 				logger.Error("failed to parse template: %v", err)
 				handleErr(w, err)
 			} else if err = tmpl.Execute(w, d); err != nil {
@@ -248,7 +248,13 @@ func Serve() error {
 			if segments := strings.Split(r.URL.String(), "character-creation/"); len(segments) == 2 {
 				article = segments[1]
 			}
-			if tmpl, d, err := createTemplateArticleList(article); err != nil {
+			var templateFunc func(string) (*template.Template, *models.BaseSite, error)
+			if typeAndName := strings.Split(article, "/"); len(typeAndName) > 1 {
+				templateFunc = createTemplateItem
+			} else {
+				templateFunc = createTemplateArticleList
+			}
+			if tmpl, d, err := templateFunc(article); err != nil {
 				logger.Error("failed to parse template: %v", err)
 				handleErr(w, err)
 			} else if err = tmpl.Execute(w, d); err != nil {
@@ -338,29 +344,29 @@ func createTemplateArticleList(articleType string) (t *template.Template, d *mod
 	case "":
 		return createTemplateArticle("Character Creation")
 	case "races":
-		article.Article.Title = "Races"
+		article.Article.Title = "Race & Background"
 		if article.List, err = data.FetchRaces(false); err != nil {
 			return
 		}
 	case "bgs", "backgrounds":
-		article.Article.Title = "Backgrounds"
+		article.Article.Title = "Race & Background"
 		if article.List, err = data.FetchBackgrounds(false); err != nil {
 			return
 		}
 	case "boons":
-		article.Article.Title = "Boons"
+		article.Article.Title = "Boons & Banes"
 		boon := true
 		if article.List, err = data.FetchAffinities(&boon); err != nil {
 			return
 		}
 	case "banes":
-		article.Article.Title = "Banes"
+		article.Article.Title = "Boons & Banes"
 		boon := false
 		if article.List, err = data.FetchAffinities(&boon); err != nil {
 			return
 		}
 	case "affinities":
-		article.Article.Title = "Affinities"
+		article.Article.Title = "Boons & Banes"
 		if article.List, err = data.FetchAffinities(nil); err != nil {
 			return
 		}
@@ -380,10 +386,63 @@ func createTemplateArticleList(articleType string) (t *template.Template, d *mod
 	if article.Article, err = data.FetchArticle(article.Article.Title); err != nil {
 		return t, d, fmt.Errorf("failed to fetch article: %v", err)
 	}
+	switch strings.ToLower(articleType) {
+	case "races":
+		article.Article.Title = "Races"
+	case "bgs", "backgrounds":
+		article.Article.Title = "Backgrounds"
+	case "boons":
+		article.Article.Title = "Boons"
+	case "banes":
+		article.Article.Title = "Banes"
+	}
 	t, d, err = withBase("./templates/article_list.html")
 	d.Content = article
 	d.Title = article.Article.Title
 	return
+}
+
+func createTemplateRace(name string) (t *template.Template, d *models.BaseSite, err error) {
+	return withBase() // TODO
+}
+
+func createTemplateBg(name string) (t *template.Template, d *models.BaseSite, err error) {
+	return withBase() // TODO
+}
+
+func createTemplateAffinity(topic string, name string) (t *template.Template, d *models.BaseSite, err error) {
+	return withBase() // TODO
+}
+
+func createTemplateSkill(name string) (t *template.Template, d *models.BaseSite, err error) {
+	return withBase() // TODO
+}
+
+func createTemplateAbility(name string) (t *template.Template, d *models.BaseSite, err error) {
+	return withBase() // TODO
+}
+
+func createTemplateItem(article string) (t *template.Template, d *models.BaseSite, err error) {
+	segments := strings.Split(article, "/")
+	topic, item := segments[0], segments[1]
+	switch topic {
+	case "races":
+		return createTemplateRace(item)
+	case "bgs", "backgrounds":
+		return createTemplateBg(item)
+	case "boons":
+		return createTemplateAffinity("Boon", item)
+	case "banes":
+		return createTemplateAffinity("Bane", item)
+	case "affinities":
+		return createTemplateAffinity("Affinity", item)
+	case "abilities":
+		return createTemplateAbility(item)
+	case "skills":
+		return createTemplateSkill(item)
+	default:
+		return t, d, fmt.Errorf("topic %s not found", topic)
+	}
 }
 
 func createTemplateCharacterCreation(r *http.Request) (t *template.Template, d *models.BaseSite, err error) {
@@ -405,11 +464,51 @@ type glEntry struct {
 	Link  string
 }
 
+func evalAnd(entry glEntry, cond string) bool {
+	conditions := strings.Split(cond, "&")
+	for _, condition := range conditions {
+		if len(condition) < 2 {
+			return false
+		}
+		switch condition[0] {
+		case '#':
+			contained := false
+			for _, tag := range entry.Tags {
+				if condition[1:] == strings.ToLower(tag) {
+					contained = true
+				}
+			}
+			if !contained {
+				return false
+			}
+		case '"':
+			if !(condition[len(condition)-1] == '"' &&
+				strings.Contains(strings.ToLower(entry.Text), condition[1:len(condition)-1]) ||
+				strings.Contains(strings.ToLower(entry.Text), condition[1:])) {
+				return false
+			}
+		default:
+			if !strings.Contains(strings.ToLower(entry.Title), condition) {
+				return false
+			}
+		}
+
+	}
+	return true
+}
+
 func matchFilter(entry glEntry, filter string) bool {
 	if filter == "" {
 		return true
 	}
-	return strings.Contains(strings.ToLower(entry.Title), strings.ToLower(filter))
+	filter = strings.ToLower(filter)
+	conditions := strings.Split(filter, "|")
+	for _, condition := range conditions {
+		if evalAnd(entry, condition) {
+			return true
+		}
+	}
+	return false
 }
 
 func getId(node *html.Node) string {
@@ -441,8 +540,15 @@ func getLink(title string) string {
 	case "Races", "Backgrounds", "Boons", "Banes", "Skills", "Abilities":
 		return "/character-creation?type=" + strings.ToLower(title)
 	default:
-		return "/" + strings.ReplaceAll(strings.ToLower(title), " ", "-")
+		return "/" + strings.Replace(strings.ToLower(title), " ", "-", -1)
 	}
+}
+
+func trimTx(text string, max int) string {
+	if len(text) > max {
+		return text[:max]
+	}
+	return text
 }
 
 func convArticleToEntries(article models.Article, maxLength int, filter string) ([]glEntry, error) {
@@ -452,16 +558,13 @@ func convArticleToEntries(article models.Article, maxLength int, filter string) 
 	}
 	entries := make([]glEntry, 0)
 	link := getLink(article.Title)
-	entries = append(entries, glEntry{
-		Title: article.Title,
-		Tags:  article.Tags,
-		Link:  link,
-	})
-	var text string
+	var text strings.Builder
 	var parseNode func(*html.Node)
 	parseNode = func(n *html.Node) {
 		if n.Type == html.TextNode {
-			text += n.Data
+			if text.Len() < maxLength {
+				text.WriteString(n.Data)
+			}
 		} else if id := getId(n); id != "" {
 			var pText string
 			for c := n.NextSibling; c != nil; c = c.NextSibling {
@@ -473,7 +576,7 @@ func convArticleToEntries(article models.Article, maxLength int, filter string) 
 			entry := glEntry{
 				Title: getText(n),
 				Text:  pText,
-				Tags:  append(article.Tags, article.Title),
+				Tags:  append([]string{article.Title}, article.Tags...),
 				Link:  link + "#" + id,
 			}
 			if matchFilter(entry, filter) {
@@ -488,18 +591,30 @@ func convArticleToEntries(article models.Article, maxLength int, filter string) 
 		}
 	}
 	parseNode(doc)
-	if len(text) > maxLength {
-		text = text[:maxLength]
+	if len(filter) == 0 {
+		if len(entries) > 0 && len(entries[0].Text) == 0 {
+			entries[0].Tags = append([]string{"Topic"}, entries[0].Tags...)
+			if text.Len() <= maxLength {
+				entries[0].Text = text.String()
+			} else {
+				entries[0].Text = text.String()[:maxLength]
+			}
+		}
+	} else {
+		topic := glEntry{
+			Title: article.Title,
+			Text:  text.String(),
+			Tags:  append([]string{"Topic", article.Title}, article.Tags...),
+			Link:  link,
+		}
+		if matchFilter(topic, filter) {
+			if len(topic.Text) > maxLength {
+				topic.Text = topic.Text[:maxLength]
+			}
+			entries = append([]glEntry{topic}, entries...)
+		}
 	}
-	entries[0].Text = text
-	if matchFilter(entries[0], filter) {
-		entries[0].Tags = append([]string{"Topic", entries[0].Title}, entries[0].Tags...)
-		return entries, nil
-	}
-	if len(entries) > 1 {
-		return entries[1:], nil
-	}
-	return nil, nil
+	return entries, nil
 }
 
 func createTemplateGlossary(r *http.Request) (t *template.Template, d *models.BaseSite, err error) {

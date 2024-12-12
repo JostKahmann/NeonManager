@@ -43,6 +43,26 @@
             bottom: 0;
             width: 100%;
         }
+        ol.with-description {
+            position: relative;
+            list-style-type: none;
+            counter-reset: custom-cunter;
+        }
+        ol.with-description li:nth-child(odd) {
+            position: relative;
+            left: -2rem;
+            counter-increment: custom-counter;
+        }
+        ol.with-description li:nth-child(even) {
+            font-style: italic;
+        }
+        ol.with-description li:nth-child(odd)::before {
+            display: inline-block;
+            text-align: right;
+            padding-right: 0.2rem;
+            min-width: 1.8rem;
+            content: counter(custom-counter) ". ";
+        }
         ul.with-description li:nth-child(even) {
             list-style: none;
         }
@@ -79,8 +99,8 @@
                 <a class="dropdown-item" href="/character-creation/bgs">Backgrounds</a>
                 <a class="dropdown-item" href="/character-creation/boons">Boons</a>
                 <a class="dropdown-item" href="/character-creation/banes">Banes</a>
-                <a class="dropdown-item" href="/character-creation/abilities">Abilities</a>
                 <a class="dropdown-item" href="/character-creation/skills">Skills</a>
+                <a class="dropdown-item" href="/character-creation/abilities">Abilities</a>
                 <div class="dropdown-divider"></div>
                 <a class="dropdown-item" href="/create">Create New Character</a>
                 <a class="dropdown-item" href="/create?list=all">Character List</a>
@@ -91,12 +111,12 @@
                 Equipment
             </a>
             <div class="dropdown-menu">
-                <a class="dropdown-item" href="/equipment">All</a>
-                <div class="dropdown-divider"></div>
-                <a class="dropdown-item" href="/equipment/weapons">Weapons</a>
-                <a class="dropdown-item" href="/equipment/armor">Armor</a>
-                <div class="dropdown-divider"></div>
-                <a class="dropdown-item" href="/equipment/utility">Utility</a>
+<!--                <a class="dropdown-item" href="/equipment">All</a>-->
+<!--                <div class="dropdown-divider"></div>-->
+<!--                <a class="dropdown-item" href="/equipment/weapons">Weapons</a>-->
+<!--                <a class="dropdown-item" href="/equipment/armor">Armor</a>-->
+<!--                <div class="dropdown-divider"></div>-->
+<!--                <a class="dropdown-item" href="/equipment/utility">Utility</a>-->
             </div>
         </li>
         <li class="nav-item"><a class="nav-link" href="/addons">Addons</a></li>

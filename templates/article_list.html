@@ -25,7 +25,7 @@
                 </thead>
                 <tbody>
                 {{ range .List }}
-                <tr onclick="window.location='/search?t={{ $.Content.Article.Title }}&q={{ .Name }}'">
+                <tr onclick="window.location='/character-creation/{{ $.Content.Article.Title }}/{{ .Name }}'">
                     <td style="white-space: nowrap">{{ .Name }}</td>
                     <td style="white-space: nowrap">{{ .Cost }}</td>
                 </tr>

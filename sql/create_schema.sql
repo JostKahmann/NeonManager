@@ -263,13 +263,29 @@ CREATE TABLE IF NOT EXISTS _characters_skills
 
 CREATE TABLE IF NOT EXISTS article (
     id INTEGER PRIMARY KEY AUTOINCREMENT,
-    title VARCHAR(255),
-    document TEXT
+    parent INTEGER REFERENCES article(id),
+    title VARCHAR(255) NOT NULL
 );
 
-CREATE TABLE IF NOT EXISTS _articles_tags (
+CREATE TABLE IF NOT EXISTS paragraph (
+    article INTEGER NOT NULL REFERENCES article(id),
+    ordinal INTEGER NOT NULL DEFAULT 0,
+    text TEXT NOT NULL,
+    css VARCHAR(255) DEFAULT '',
+    PRIMARY KEY (article, ordinal)
+);
+
+CREATE TABLE IF NOT EXISTS ptable (
     id INTEGER PRIMARY KEY AUTOINCREMENT,
-    article INTEGER,
-    tag VARCHAR(255),
-    FOREIGN KEY (article) REFERENCES article(id) ON DELETE CASCADE ON UPDATE CASCADE
+    article INTEGER NOT NULL UNIQUE REFERENCES article(id),
+    ordinal INTEGER NOT NULL,
+    title VARCHAR(255) DEFAULT ''
+);
+
+CREATE TABLE IF NOT EXISTS table_col (
+    id INTEGER REFERENCES ptable(id),
+    col INTEGER NOT NULL,
+    row INTEGER NOT NULL,
+    value VARCHAR(255),
+    PRIMARY KEY (id, col, row)
 );

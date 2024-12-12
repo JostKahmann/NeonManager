@@ -5,6 +5,7 @@ import (
 	"database/sql"
 	"fmt"
 	_ "github.com/mattn/go-sqlite3"
+	"html/template"
 	"log"
 	"os"
 	"strconv"
@@ -96,25 +97,35 @@ GROUP BY c.id
 HAVING COUNT(*) > 0
 )
 `
-var articleQuery = `
-SELECT id, title, txt, tags, tbl FROM (
-SELECT a.id as id, a.title as title, a.document as txt, COALESCE(GROUP_CONCAT(t.tag, ','), '') as tags, 'article' as tbl
-FROM article a 
-    LEFT JOIN _articles_tags t ON a.id = t.article
-GROUP BY a.id
-UNION SELECT -1 as id, r.name || '(' || r.cost || ' GP)' as title, r.description as txt, e.name || 'race' as tags, 'race' as tbl
-      FROM race r JOIN extension e ON e.id = r.extension
-UNION SELECT -1 as id, b.name || '(' || b.cost || ' GP)' as title, b.description as txt, e.name || 'background,bg' as tags, 'background' as tbl
-      FROM background b JOIN extension e ON e.id = b.extension
-UNION SELECT -1 as id, aff.name as title, aff.description as txt, e.name || 'boon' as tags, 'affinity' as tbl
-      FROM affinity aff JOIN extension e ON e.id = aff.extension WHERE aff.isBoon = 1
-UNION SELECT -1 as id, aff.name as title, aff.description as txt, e.name || 'bane' as tags, 'affinity' as tbl
-      FROM affinity aff JOIN extension e ON e.id = aff.extension WHERE aff.isBoon = 0
-UNION SELECT -1 as id, a.name || '(' || a.cost || ' XP)' as title, a.effect as txt, e.name || 'ability' as tags, 'ability' as tbl
-      FROM ability a JOIN extension e ON e.id = a.extension
-UNION SELECT -1 as id, s.name || '(' || CASE WHEN s.cost == 0 THEN 'advanced' ELSE 'basic' END || ')' as title, s.description as txt, e.name || 'skill' as tags, 'skill' as tbl
-      FROM skill s JOIN extension e ON e.id = s.extension
-) WHERE title IS NOT NULL
+var articleParentQuery = `
+WITH RECURSIVE topic AS (
+    SELECT id, parent, title
+    FROM article
+    WHERE parent IS NULL
+
+    UNION ALL
+
+    SELECT a.id, a.parent, a.title
+    FROM article a
+    INNER JOIN topic t ON a.parent = t.id
+)
+SELECT id, parent, title FROM topic
+ORDER BY parent, id
+`
+var articleTitleQuery = `
+WITH RECURSIVE topic AS (
+    SELECT id, parent, title
+    FROM article
+    WHERE title = ?
+
+    UNION ALL
+
+    SELECT a.id, a.parent, a.title
+    FROM article a
+    INNER JOIN topic t ON a.parent = t.id
+)
+SELECT id, parent, title FROM topic
+ORDER BY parent, id /* parent id should always be lower than child ids */
 `
 
 // Init initializes db connection
@@ -426,14 +437,6 @@ func scanCharacter(rows *sql.Rows, item *models.Character) (err error) {
 		item.Abilities = resolveList(abilityStr, models.Ability{})
 
 		item.Skills = resolveLevelList(sklStr, models.Skill{})
-	}
-	return
-}
-
-func scanArticle(rows *sql.Rows, item *models.Article) (err error) {
-	var tagsStr string
-	if err = rows.Scan(&(*item).Id, &(*item).Title, &(*item).Text, &tagsStr, &(*item).Table); err == nil {
-		(*item).Tags = strings.Split(tagsStr, ",")
 	}
 	return
 }
@@ -862,33 +865,311 @@ func FetchCharacters(populate bool) (chars []models.Character, err error) {
 	return
 }
 
-func FetchArticles() (articles []models.Article, err error) {
+type paragraph struct {
+	text    string
+	css     string
+	ordinal int
+}
+
+type table struct {
+	ordinal int
+	header  []string
+	rows    [][]string
+}
+
+type article struct {
+	id         int64
+	title      string
+	sub        []*article
+	paragraphs []paragraph
+	table      *table
+}
+
+func fetchTable(article int64) (tbl *table, err error) {
+	var rows *sql.Rows
+	if rows, err = db.Query(`SELECT ptable.id, ordinal, MAX(tc.col), MAX(tc.row) FROM ptable 
+    JOIN table_col tc on ptable.id = tc.id WHERE ptable.article = ? HAVING COUNT(*) > 0`, article); err != nil {
+		return
+	}
+	var id int
+	var colCnt int
+	var rowCnt int
+	if rows.Next() {
+		tbl = &table{}
+		if err = rows.Scan(&id, &tbl.ordinal, &colCnt, &rowCnt); err != nil {
+			return
+		}
+	} else {
+		return nil, nil
+	}
+	_ = rows.Close()
+	if rows, err = db.Query("SELECT row, col, value FROM table_col WHERE id = ? ORDER BY row", id); err != nil {
+		return
+	}
+	defer func() {
+		_ = rows.Close()
+	}()
+	tbl.header = make([]string, colCnt)
+	tbl.rows = make([][]string, rowCnt)
+	for rows.Next() {
+		row := struct {
+			row   int
+			col   int
+			value string
+		}{}
+		if err = rows.Scan(&row.row, &row.col, &row.value); err != nil {
+			return
+		}
+		if row.row == 0 {
+			tbl.header[row.col-1] = row.value
+		} else {
+			if tbl.rows[row.row-1] == nil {
+				tbl.rows[row.row-1] = make([]string, colCnt)
+			}
+			tbl.rows[row.row-1][row.col-1] = row.value
+		}
+	}
+	return
+}
+
+func fetchParagraphs(article int64) (p []paragraph, err error) {
+	var rows *sql.Rows
+	if rows, err = db.Query("SELECT ordinal, text, COALESCE(css, '') FROM paragraph WHERE article = ?", article); err != nil {
+		return
+	}
+	defer func() {
+		_ = rows.Close()
+	}()
+	p = make([]paragraph, 0)
+	for rows.Next() {
+		para := paragraph{}
+		if err = rows.Scan(&para.ordinal, &para.text, &para.css); err != nil {
+			return
+		}
+		p = append(p, para)
+	}
+	return
+}
+
+func fetchArticle(title string) (result *article, err error) {
 	var stmt *sql.Stmt
-	if stmt, err = db.Prepare(articleQuery); err != nil {
+	if stmt, err = db.Prepare(articleTitleQuery); err != nil {
+		return
+	}
+	defer func() {
+		_ = stmt.Close()
+	}()
+	var rows *sql.Rows
+	if rows, err = stmt.Query(title); err != nil {
+		return
+	}
+	defer func() {
+		_ = rows.Close()
+	}()
+	articleMap := make(map[int64]*article)
+	for rows.Next() {
+		art := article{}
+		var p sql.NullInt64
+		if err = rows.Scan(&art.id, &p, &art.title); err != nil {
+			return nil, fmt.Errorf("failed to scan article: %w", err)
+		}
+		var parent int64
+		if p.Valid {
+			parent = p.Int64
+		} else {
+			parent = 0
+		}
+		if art.title == title {
+			result = &art
+			articleMap[art.id] = result
+			continue
+		}
+		articleMap[art.id] = &art
+		if (*articleMap[parent]).sub == nil {
+			(*articleMap[parent]).sub = make([]*article, 0)
+		}
+		(*articleMap[parent]).sub = append(articleMap[parent].sub, &art)
+	}
+	_ = rows.Close()
+	_ = stmt.Close()
+	for k := range articleMap {
+		if articleMap[k].paragraphs, err = fetchParagraphs(articleMap[k].id); err != nil {
+			return nil, fmt.Errorf("failed to fetch paragraphs: %w", err)
+		}
+		if (articleMap[k]).table, err = fetchTable(articleMap[k].id); err != nil {
+			return nil, fmt.Errorf("failed to fetch table: %w", err)
+		}
+	}
+	return
+}
+
+func fetchArticles() (articles []*article, err error) {
+	var stmt *sql.Stmt
+	if stmt, err = db.Prepare(articleParentQuery); err != nil {
 		return nil, fmt.Errorf("failed to prepare fetchArticles query: %w", err)
 	}
 	defer func() {
 		_ = stmt.Close()
 	}()
-	return fetchItems(stmt, nil, scanArticle)
-}
-
-func FetchArticle(title string) (article models.Article, err error) {
-	var stmt *sql.Stmt
-	if stmt, err = db.Prepare(articleQuery + " AND title LIKE ?"); err != nil {
-		return article, fmt.Errorf("failed to prepare fetchArticle query: %w", err)
-	}
 	var rows *sql.Rows
-	if rows, err = stmt.Query(title); err != nil {
-		return article, fmt.Errorf("failed to fetch article: %w", err)
+	if rows, err = stmt.Query(); err != nil {
+		return nil, fmt.Errorf("failed to fetch articles: %w", err)
 	}
 	defer func() {
 		_ = rows.Close()
 	}()
-	if rows.Next() {
-		err = scanArticle(rows, &article)
-	} else {
-		err = fmt.Errorf("article \"%s\" not found", title)
+	articleMap := make(map[int64]*article)
+	articleMap[0] = &article{}
+	for rows.Next() {
+		art := article{}
+		var p sql.NullInt64
+		if err = rows.Scan(&art.id, &p, &art.title); err != nil {
+			return nil, fmt.Errorf("failed to scan article: %w", err)
+		}
+		var parent int64
+		if p.Valid {
+			parent = p.Int64
+		} else {
+			parent = 0
+		}
+		articleMap[art.id] = &art
+		if (*articleMap[parent]).sub == nil {
+			(*articleMap[parent]).sub = make([]*article, 0)
+		}
+		articleMap[parent].sub = append(articleMap[parent].sub, &art)
+	}
+	articles = (*articleMap[0]).sub
+	_ = rows.Close()
+	_ = stmt.Close()
+	for k := range articleMap {
+		if articleMap[k].paragraphs, err = fetchParagraphs(articleMap[k].id); err != nil {
+			return nil, fmt.Errorf("failed to fetch paragraphs: %w", err)
+		}
+		if articleMap[k].table, err = fetchTable(articleMap[k].id); err != nil {
+			return nil, fmt.Errorf("failed to fetch table: %w", err)
+		}
+	}
+	return
+}
+
+func articleToString(art *article) (text string, err error) {
+	num := len(art.paragraphs)
+	if art.table != nil {
+		num++
+	}
+	ps := make([]string, num)
+	for _, para := range art.paragraphs {
+		html := "<p"
+		if len(para.css) > 0 {
+			html += " class=\"" + para.css + "\""
+		}
+		ps[para.ordinal] = html + ">" + para.text + "</p>"
+	}
+	if art.table != nil {
+		var sb strings.Builder
+		sb.WriteString("<table class=\"table table-striped\"><thead><tr>")
+		for _, col := range art.table.header {
+			sb.WriteString("<th>")
+			sb.WriteString(col)
+			sb.WriteString("</th>")
+		}
+		sb.WriteString("</tr></thead><tbody>")
+		for _, row := range art.table.rows {
+			sb.WriteString("<tr>")
+			for _, col := range row {
+				sb.WriteString("<td>")
+				sb.WriteString(col)
+				sb.WriteString("</td>")
+			}
+			sb.WriteString("</tr>")
+		}
+		sb.WriteString("</tbody></table>")
+		ps[art.table.ordinal] = sb.String()
+	}
+	for _, p := range ps {
+		text += p
+	}
+	return
+}
+
+type articleDepth struct {
+	art   *article
+	depth int
+}
+
+func resolveDepths(art *article, depth int) (d []articleDepth) {
+	d = []articleDepth{{art, depth}}
+	if art.sub != nil {
+		for _, sub := range art.sub {
+			d = append(d, resolveDepths(sub, depth+1)...)
+		}
+	}
+	return d
+}
+
+func div(class string) string {
+	return "<div class=\"" + class + "\">"
+}
+
+func articleToArticle(art *article) (article models.Article, err error) {
+	depths := resolveDepths(art, 0)
+	var sb strings.Builder
+	sb.WriteString(div("row"))
+	pDepth := 0
+	for _, depth := range depths {
+		if pDepth < depth.depth {
+			sb.WriteString(div("row px-4 mt-2"))
+		} else if pDepth > depth.depth {
+			sb.WriteString("</div>")
+		}
+		pDepth = depth.depth
+		sb.WriteString(div("col col-md-12 col-sm-12"))
+		sb.WriteString("<h")
+		sb.WriteRune(rune(depth.depth + 0x31))
+		sb.WriteString(" id=\"")
+		sb.WriteString(strings.ToLower(strings.Replace(depth.art.title, " ", "-", -1)))
+		sb.WriteString("\">")
+		sb.WriteString(depth.art.title)
+		sb.WriteString("</h")
+		sb.WriteRune(rune(depth.depth + 0x31))
+		sb.WriteRune('>')
+		var s string
+		if s, err = articleToString(depth.art); err != nil {
+			return article, fmt.Errorf("failed to parse article: %w", err)
+		}
+		sb.WriteString(s)
+		sb.WriteString("</div>")
+	}
+	for ; pDepth > 0; pDepth-- {
+		sb.WriteString("</div>")
+	}
+	sb.WriteString("</div>")
+	article = models.Article{
+		Title: art.title,
+		Text:  template.HTML(sb.String()),
+		Table: "article",
+	}
+	return
+}
+
+func FetchArticle(title string) (result models.Article, err error) {
+	var art *article
+	if art, err = fetchArticle(title); err != nil {
+		return
+	}
+	return articleToArticle(art)
+}
+
+func FetchArticles() (articles []models.Article, err error) {
+	var arts []*article
+	if arts, err = fetchArticles(); err != nil {
+		return
+	}
+	articles = make([]models.Article, len(arts))
+	for i, art := range arts {
+		if articles[i], err = articleToArticle(art); err != nil {
+			return
+		}
 	}
 	return
 }
