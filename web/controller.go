@@ -250,9 +250,9 @@ func Serve() error {
 			}
 			var templateFunc func(string) (*template.Template, *models.BaseSite, error)
 			if typeAndName := strings.Split(article, "/"); len(typeAndName) > 1 {
-				templateFunc = createTemplateItem
+				templateFunc = createTemplateCharacterItem
 			} else {
-				templateFunc = createTemplateArticleList
+				templateFunc = createTemplateArticleCharacterList
 			}
 			if tmpl, d, err := templateFunc(article); err != nil {
 				logger.Error("failed to parse template: %v", err)
@@ -276,11 +276,11 @@ func Serve() error {
 			}
 		})
 	}
-	if regex, err := regexp.Compile("^/equipment(/.*)?$"); err != nil {
+	if regex, err := regexp.Compile("^/equipment$"); err != nil {
 		logger.Error("Failed to compile regex for equipment: %v", err)
 	} else {
 		handler.HandlerFunc(regex, func(w http.ResponseWriter, r *http.Request) {
-			if tmpl, d, err := createTemplateEquipment(r); err != nil {
+			if tmpl, d, err := createTemplateArticle("Equipment"); err != nil {
 				logger.Error("failed to parse template: %v", err)
 				handleErr(w, err)
 			} else if err = tmpl.Execute(w, d); err != nil {
@@ -338,7 +338,7 @@ func createTemplateArticle(title string) (t *template.Template, d *models.BaseSi
 	return
 }
 
-func createTemplateArticleList(articleType string) (t *template.Template, d *models.BaseSite, err error) {
+func createTemplateArticleCharacterList(articleType string) (t *template.Template, d *models.BaseSite, err error) {
 	var article models.ArticleList
 	switch strings.ToLower(articleType) {
 	case "":
@@ -402,44 +402,37 @@ func createTemplateArticleList(articleType string) (t *template.Template, d *mod
 	return
 }
 
-func createTemplateRace(name string) (t *template.Template, d *models.BaseSite, err error) {
-	return withBase() // TODO
+func createTemplateDbItem[T models.DbItem](pk string, title string, fetch func(string) (T, error), templates ...string) (t *template.Template, d *models.BaseSite, err error) {
+	var item T
+	if item, err = fetch(pk); err != nil {
+		return
+	}
+	t, d, err = withBase(templates...)
+	d.Title = title + item.Pk()
+	d.Content = item
+	return
 }
 
-func createTemplateBg(name string) (t *template.Template, d *models.BaseSite, err error) {
-	return withBase() // TODO
-}
-
-func createTemplateAffinity(topic string, name string) (t *template.Template, d *models.BaseSite, err error) {
-	return withBase() // TODO
-}
-
-func createTemplateSkill(name string) (t *template.Template, d *models.BaseSite, err error) {
-	return withBase() // TODO
-}
-
-func createTemplateAbility(name string) (t *template.Template, d *models.BaseSite, err error) {
-	return withBase() // TODO
-}
-
-func createTemplateItem(article string) (t *template.Template, d *models.BaseSite, err error) {
+func createTemplateCharacterItem(article string) (t *template.Template, d *models.BaseSite, err error) {
 	segments := strings.Split(article, "/")
 	topic, item := segments[0], segments[1]
 	switch topic {
 	case "races":
-		return createTemplateRace(item)
+		return createTemplateDbItem(item, "Race: ", data.FetchRace, "./templates/character/race.html",
+			"./templates/character/stats.html", "./templates/character/choices.html")
 	case "bgs", "backgrounds":
-		return createTemplateBg(item)
+		return createTemplateDbItem(item, "Background: ", data.FetchBackground, "./templates/character/background.html",
+			"./templates/character/stats.html", "./templates/character/choices.html")
 	case "boons":
-		return createTemplateAffinity("Boon", item)
+		return createTemplateDbItem(item, "Boon: ", data.FetchAffinity, "./templates/character/affinity.html")
 	case "banes":
-		return createTemplateAffinity("Bane", item)
+		return createTemplateDbItem(item, "Bane: ", data.FetchAffinity, "./templates/character/affinity.html")
 	case "affinities":
-		return createTemplateAffinity("Affinity", item)
+		return createTemplateDbItem(item, "", data.FetchAffinity, "./templates/character/affinity.html")
 	case "abilities":
-		return createTemplateAbility(item)
+		return createTemplateDbItem(item, "Ability: ", data.FetchAbility, "./templates/character/ability.html")
 	case "skills":
-		return createTemplateSkill(item)
+		return createTemplateDbItem(item, "Skill: ", data.FetchSkill, "./templates/character/skill.html")
 	default:
 		return t, d, fmt.Errorf("topic %s not found", topic)
 	}
@@ -447,10 +440,6 @@ func createTemplateItem(article string) (t *template.Template, d *models.BaseSit
 
 func createTemplateCharacterCreation(r *http.Request) (t *template.Template, d *models.BaseSite, err error) {
 	return withBase("./templates/character-creation.html")
-}
-
-func createTemplateEquipment(r *http.Request) (*template.Template, *models.BaseSite, error) {
-	return nil, nil, fmt.Errorf("not implemented")
 }
 
 func createTemplateAddons(r *http.Request) (t *template.Template, d *models.BaseSite, err error) {
@@ -530,25 +519,19 @@ func getText(node *html.Node) (text string) {
 		text = node.Data
 	}
 	for c := node.FirstChild; c != nil; c = c.NextSibling {
-		text += getText(c)
+		text += " " + getText(c)
 	}
 	return
 }
 
 func getLink(title string) string {
+	title = strings.ToLower(title)
 	switch title {
-	case "Races", "Backgrounds", "Boons", "Banes", "Skills", "Abilities":
-		return "/character-creation?type=" + strings.ToLower(title)
+	case "races", "backgrounds", "boons", "banes", "skills", "abilities":
+		return "/character-creation?type=" + title
 	default:
-		return "/" + strings.Replace(strings.ToLower(title), " ", "-", -1)
+		return "/" + strings.Replace(title, " ", "-", -1)
 	}
-}
-
-func trimTx(text string, max int) string {
-	if len(text) > max {
-		return text[:max]
-	}
-	return text
 }
 
 func convArticleToEntries(article models.Article, maxLength int, filter string) ([]glEntry, error) {
@@ -563,6 +546,7 @@ func convArticleToEntries(article models.Article, maxLength int, filter string) 
 	parseNode = func(n *html.Node) {
 		if n.Type == html.TextNode {
 			if text.Len() < maxLength {
+				text.WriteRune(' ')
 				text.WriteString(n.Data)
 			}
 		} else if id := getId(n); id != "" {
@@ -636,23 +620,5 @@ func createTemplateGlossary(r *http.Request) (t *template.Template, d *models.Ba
 	t, d, err = withBase("./templates/glossary.html")
 	d.Title = "Glossary"
 	d.Content = glEntries
-	return
-}
-
-func createTemplateDbItem[T models.DbItem](name string, fetch func(string) (T, error), template string) (t *template.Template, d *models.BaseSite, err error) {
-	name = strings.Trim(strings.Split(name, "(")[0], " \t\n")
-	if name == "" {
-		return nil, nil, fmt.Errorf("missing query parameter")
-	}
-	var item T
-	if item, err = fetch(name); err != nil {
-		if strings.HasSuffix(err.Error(), "NULL") {
-			return nil, nil, fmt.Errorf("not found")
-		}
-		return nil, nil, fmt.Errorf("failed to fetch item from db: %v", err)
-	}
-	t, d, err = withBase(template)
-	d.Title = item.Pk()
-	d.Content = item
 	return
 }

@@ -190,7 +190,7 @@ func fetchItem[T models.DbItem](query string, item *T, scan func(*sql.Rows, *T) 
 				return fmt.Errorf("failed to scan fetchItem from row: %w", err)
 			}
 		} else {
-			return fmt.Errorf("item with pk \"%s\" does not exists (query: \"%s\"): NULL", (*item).Pk(), query)
+			return fmt.Errorf("item with pk \"%s\" not found (query: \"%s\")", (*item).Pk(), query)
 		}
 	}
 	return nil
@@ -872,6 +872,7 @@ type paragraph struct {
 }
 
 type table struct {
+	title   string
 	ordinal int
 	header  []string
 	rows    [][]string
@@ -887,7 +888,7 @@ type article struct {
 
 func fetchTable(article int64) (tbl *table, err error) {
 	var rows *sql.Rows
-	if rows, err = db.Query(`SELECT ptable.id, ordinal, MAX(tc.col), MAX(tc.row) FROM ptable 
+	if rows, err = db.Query(`SELECT ptable.id, ordinal, MAX(tc.col), MAX(tc.row), ptable.title FROM ptable 
     JOIN table_col tc on ptable.id = tc.id WHERE ptable.article = ? HAVING COUNT(*) > 0`, article); err != nil {
 		return
 	}
@@ -896,7 +897,7 @@ func fetchTable(article int64) (tbl *table, err error) {
 	var rowCnt int
 	if rows.Next() {
 		tbl = &table{}
-		if err = rows.Scan(&id, &tbl.ordinal, &colCnt, &rowCnt); err != nil {
+		if err = rows.Scan(&id, &tbl.ordinal, &colCnt, &rowCnt, &tbl.title); err != nil {
 			return
 		}
 	} else {
@@ -1067,7 +1068,23 @@ func articleToString(art *article) (text string, err error) {
 	}
 	if art.table != nil {
 		var sb strings.Builder
-		sb.WriteString("<table class=\"table table-striped\"><thead><tr>")
+		if art.table.title[:5] == "Table" {
+			sb.WriteString("<a class=\"d-none\" id=\"")
+			sb.WriteString(strings.Replace(strings.ToLower(art.table.title), " ", "-", -1))
+			sb.WriteString("\">")
+			sb.WriteString(art.table.title)
+			sb.WriteString("</a><p class=\"d-none\">")
+			for i := range art.table.rows {
+				if i != 0 {
+					sb.WriteString(", ")
+				}
+				sb.WriteString(art.table.rows[i][0])
+			}
+		} else {
+			sb.WriteString("<p class=\"d-none\">")
+			sb.WriteString(art.table.title)
+		}
+		sb.WriteString("</p><table class=\"table table-striped mb-4\"><thead><tr>")
 		for _, col := range art.table.header {
 			sb.WriteString("<th>")
 			sb.WriteString(col)

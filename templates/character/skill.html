@@ -1,0 +1,18 @@
+{{ define ""content }}
+<div>
+    <div class="d-flex justify-content-center">
+        <h1 title="Extension: {{ .Extension }}">{{ .Name }}
+            ({{- if eq .Cost 0 -}}Advanced{{- else -}}Basic{{- end -}})</h1>
+    </div>
+    <div class="row">
+        <div class="col-12">
+            <p>
+                <b>Stat:</b> {{ .Stat }}
+            </p>
+            <p>
+                {{ .Description }}
+            </p>
+        </div>
+    </div>
+</div>
+{{ end }}

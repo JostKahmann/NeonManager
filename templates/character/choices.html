@@ -1,0 +1,33 @@
+{{ range . }}
+<div class="row">
+    <div class="col">
+        {{ if eq .ChoiceGroup 0 }}
+        <!-- Affinities -->
+        <h4>Choose {{ .Count }} of</h4>
+        <ul>
+            {{ range .Affinities }}
+            <li>{{ .Name }}</li>
+            {{ end }}
+        </ul>
+
+        {{ else if eq .ChoiceGroup 1 }}
+        <!-- Abilities -->
+        <h4>Choose {{ .Count }} of</h4>
+        <ul>
+            {{ range .Abilities }}
+            <li>{{ .Name }}</li>
+            {{ end }}
+        </ul>
+
+        {{ else if eq .ChoiceGroup 1 }}
+        <!-- Skills -->
+        <h4>Choose {{ .Count }} of</h4>
+        <ul>
+            {{ range .Skills }}
+            <li>{{ .Name }}</li>
+            {{ end }}
+        </ul>
+        {{ end }}
+    </div>
+</div>
+{{ end }}

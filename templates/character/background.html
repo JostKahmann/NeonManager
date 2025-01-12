@@ -1,0 +1,73 @@
+{{ define "content" }}
+<div>
+    <div class="d-flex justify-content-center">
+        <h1 title="Extension: {{ .Extension }}">{{ .Name }} ({{ .Cost }} GP)</h1>
+    </div>
+    <div class="row">
+        <div class="col-12">
+            <p>
+                {{ .Description }}
+            </p>
+        </div>
+        <div class="col-12">
+            {{ block "stats" .Stats }}
+            ?Stats?
+            {{ end }}
+        </div>
+    </div>
+    <div class="row">
+        {{ if .Boons }}
+        <div class="col-12">
+            <h2>Boons</h2>
+            <p>
+                {{- range $index, $item := .Boons -}}
+                {{- if ne $index 0 }}, {{- end }}
+                {{ $item }}
+                {{- end }}
+            </p>
+        </div>
+        {{ end }}
+        {{ if .Banes }}
+        <div class="col-12">
+            <h2>Banes</h2>
+            <p>
+                {{- range $index, $item := .Banes -}}
+                {{- if ne $index 0 }}, {{- end }}
+                {{ $item }}
+                {{- end }}
+            </p>
+        </div>
+        {{ end }}
+    </div>
+    <div class="row">
+        {{ if .Skills }}
+        <div class="col-12">
+            <h2>Skills</h2>
+            <p>
+                {{- range $index, $item := .Skills -}}
+                {{- if ne $index 0 }}, {{- end }}
+                {{ $item }}
+                {{- end }}
+            </p>
+        </div>
+        {{ end }}
+        {{ if .Abilities }}
+        <div class="col-12">
+            <h2>Abilities</h2>
+            <p>
+                {{- range $index, $item := .Abilities -}}
+                {{- if ne $index 0 }}, {{- end }}
+                {{ $item }}
+                {{- end }}
+            </p>
+        </div>
+        {{ end }}
+    </div>
+    {{ if .Choices }}
+    <h3>Choices</h3>
+    {{ block "choices" .Choices }}
+    ?Choices?
+    {{ end }}
+    {{ end }}
+</div>
+{{ end }}

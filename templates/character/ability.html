@@ -1,0 +1,37 @@
+{{ define ""content }}
+<div>
+    <div class="d-flex justify-content-center">
+        <h1 title="Extension: {{ .Extension }}">{{ .Name }} ({{ .Cost }} XP)</h1>
+    </div>
+    <div class="row">
+        <div class="col-12">
+            <p>
+                {{ .Effect }}
+            </p>
+        </div>
+    </div>
+    {{ if .Requirements }}
+    <div class="row">
+        <div class="col">
+            <h2>Requirements</h2>
+            <ul>
+                {{ range .Requirements }}
+                <li>
+                    {{ if eq .RequiredType 0 }}
+                    <!-- Affinity -->
+                    {{ .RAffinity }}
+                    {{ else if eq .RequiredType 1 }}
+                    <!-- Ability -->
+                    {{ .RAbility }}
+                    {{ else if eq .RequiredType 2 }}
+                    <!-- Skill -->
+                    {{ .RSkill }}
+                    {{ end }}
+                </li>
+                {{ end }}
+            </ul>
+        </div>
+    </div>
+    {{ end }}
+</div>
+{{ end }}
